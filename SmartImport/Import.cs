@@ -100,10 +100,17 @@ dbConnection.Open();
             return true;
         }
 
-        public void ImportData()
+        public void ImportData(Config config)
         {
+            //because this is a staging table, lets first delete the records by truncating table.
+            using (IDbConnection dbConnection = ConnectionID)
+            {
+                string sqlT = $"truncate table {config.Desto}";
+                dbConnection.Execute(sqlT);
+            }
+
             //string qry = "SELECT top 1 * FROM ImportData." + config.Desto;
-            string parms = null;
+                string parms = null;
             string data;
             foreach (var s in rr)
             {
@@ -139,12 +146,42 @@ dbConnection.Open();
                     csvr = rcsv.parser.Read();
                 }
                 string message = $"'{reccount} Records added'";
-                string tempFn = $"'{rcsv.filename}'";
-                string sqlLog =
-                    $"insert into dbo.ImportSourceLog (Daterun,Message,Filename) values (getdate(),{message},{tempFn})";
+                
+
+                string fnOnly = rcsv.filename.Substring(rcsv.filename.LastIndexOf("\\") + 1);
+                string tempFn = $"'{fnOnly}'";
+                string sqlLog = $"insert into dbo.ImportSourceLog (Daterun,Message,Filename) values (getdate(),{message},{tempFn})";
                 dbConnection.Execute(sqlLog);
+               
 
             }
+            using (IDbConnection dbConnectionService = Connection)
+            {
+                try
+                {
+                    dbConnectionService.Execute(config.updateQuery);
+                }
+                catch (Exception ex)
+                {
+                    error(ex.Message, config.updateQuery);
+                }
+                try
+                {
+                    dbConnectionService.Execute(config.insertQuery);
+                }
+                catch (Exception ex)
+                {
+                    error(ex.Message, config.insertQuery);
+                }
+            }
+
+        }
+
+        private void error(string e, string second)
+        {
+            var err = new LogError();
+            err.InsertError(e, second);
+            
         }
     }
 }

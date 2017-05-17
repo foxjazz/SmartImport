@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reflection.Metadata;
 using System.Text;
 
 namespace SmartImport
@@ -11,6 +12,9 @@ namespace SmartImport
         public string Desto { get; set; }
 
         public DateTime? LastRun { get; set; }
+        
+        public string updateQuery { get; set; }
+        public string insertQuery { get; set; }
 
     }
 }

@@ -26,6 +26,7 @@ namespace SmartImport
         {
             using (IDbConnection dbConnection = ConnectionID)
             {
+                error = error.Replace("'", "''");
                 string tError = $"'{error}'";
                 string tFilename = $"'{filename}'";
                 string sql =

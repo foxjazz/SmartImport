@@ -14,8 +14,11 @@ namespace SmartImport
     {
         
         public CsvParser parser;
-        public ReadCsv(string fil)
+        private Config config;
+        public ReadCsv(Config cnf)
         {
+            config = cnf;
+            string fil = config.Source;
             startFileName = fil.Substring(fil.LastIndexOf("\\") + 1);
 
             folder = fil.Substring(0, fil.LastIndexOf("\\"));
@@ -55,12 +58,14 @@ namespace SmartImport
         }
         private string getFile()
         {
+            string fnOnly=null;
             //This should be dependent on files not yet run.
             List<string> runFiles = getRunFiles();
             var list = Directory.GetFiles(folder, startFileName + "*");
             foreach (var fn in list)
             {
-                if (runFiles.Any(f => f.Equals(fn)))
+                fnOnly = fn.Substring(fn.LastIndexOf("\\") + 1);
+                if (runFiles.Any(f => f.Equals(fnOnly)))
                 {
                     continue;
                 }
@@ -70,13 +75,13 @@ namespace SmartImport
         }
 
         public string filename { get; set; }
-        public void Read()
+        public bool Read()
         {
 
 
             filename = getFile();
             if (filename.Length == 0)
-                return;
+                return false;
             try
             {
                 var streamReader = new StreamReader(File.OpenRead(filename));
@@ -86,8 +91,12 @@ namespace SmartImport
             }
             catch (Exception ex)
             {
+                var le = new LogError();
+                le.InsertError(ex.Message, "Reading File " + filename);
                 Console.WriteLine(ex.Message);
+                return false;
             }
+            return true;
 
 
         }

@@ -15,21 +15,23 @@ namespace SmartImport
                 cd.PopulateList();
                 foreach (var config in cd.ListConfig)
                 {
-                    var rcsv = new ReadCsv(config.Source);
-                    rcsv.Read();
-                    try
+                    var rcsv = new ReadCsv(config);
+                    while (rcsv.Read())
                     {
-                        var import = new Import(config);
-                        if (import.CheckFields(rcsv))
+                        try
                         {
-                            import.ImportData();
+                            var import = new Import(config);
+                            if (import.CheckFields(rcsv))
+                            {
+                                import.ImportData(config);
+                            }
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        var n = new LogError();
-                        n.InsertError(ex.Message, rcsv.filename);
+                        catch (Exception ex)
+                        {
+                            var n = new LogError();
+                            n.InsertError(ex.Message, rcsv.filename);
 
+                        }
                     }
                 }
             }
