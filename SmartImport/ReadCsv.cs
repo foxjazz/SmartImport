@@ -67,6 +67,17 @@ namespace SmartImport
                 fnOnly = fn.Substring(fn.LastIndexOf("\\") + 1);
                 if (runFiles.Any(f => f.Equals(fnOnly)))
                 {
+                    try
+                    {
+                        
+                        File.Copy(fn, config.archiveLocation + "\\" + fnOnly);
+                        File.Delete(fn);
+                    }
+                    catch(Exception ex)
+                    {
+                        var n = new LogError();
+                        n.InsertError("Copy to archive failed." + ex.Message, fnOnly);
+                    }
                     continue;
                 }
                 return fn;

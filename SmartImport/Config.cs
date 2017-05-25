@@ -15,6 +15,7 @@ namespace SmartImport
         
         public string updateQuery { get; set; }
         public string insertQuery { get; set; }
+        public string archiveLocation { get; set; }
 
     }
 }

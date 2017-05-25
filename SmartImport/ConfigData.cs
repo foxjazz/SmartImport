@@ -34,7 +34,7 @@ namespace SmartImport
             using (IDbConnection dbConnection = Connection)
             {
                 
-                    string sQuery = "SELECT name, Source, Desto, LastRun, updateQuery, insertQuery FROM ImportSource";
+                    string sQuery = "SELECT name, Source, Desto, LastRun, updateQuery, insertQuery, archiveLocation FROM ImportSource";
                     dbConnection.Open();
                     ListConfig =  dbConnection.Query<Config>(sQuery).ToList();
                 

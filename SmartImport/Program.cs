@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 
 namespace SmartImport
 {
@@ -32,7 +33,21 @@ namespace SmartImport
                             n.InsertError(ex.Message, rcsv.filename);
 
                         }
+                        try
+                        {
+                            //archive already processed found files
+                            string fullSource = config.Source + "\\" + rcsv.filename;
+                            File.Copy(rcsv.filename, config.archiveLocation + "\\" + rcsv.filename);
+                            File.Delete(rcsv.filename);
+                        }
+                        catch
+                        {
+                            var n = new LogError();
+                            n.InsertError("Copy to archive failed.", rcsv.filename);
+                        }
                     }
+                    
+
                 }
             }
             catch (Exception ex)
