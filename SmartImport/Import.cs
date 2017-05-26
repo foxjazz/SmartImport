@@ -11,17 +11,9 @@ namespace SmartImport
 {
     public class Import
     {
-#if DEBUG
-        private const string connectionString = @"Server=SBQ201;Database=Service;Trusted_Connection=true;";
-#else
-           private const string connectionString = @"Server=87309-SB201;Database=Service;Trusted_Connection=true;";
-#endif
 
-#if DEBUG
-        private const string csImportData = @"Server=SBQ201;Database=ImportData;Trusted_Connection=true;";
-#else
-           private const string csImportData = @"Server=87309-SB201;Database=ImportData;Trusted_Connection=true;";
-#endif
+        private readonly string csImportData = GetCS.cs();
+        private readonly string connectionString = GetCS.SD();
 
         private Config config;
         public Import(Config c)
@@ -57,7 +49,7 @@ namespace SmartImport
                 string sql = "SELECT QUOTENAME(SCHEMA_NAME(tb.[schema_id])) AS 'Schema' " +
                              ",QUOTENAME(OBJECT_NAME(tb.[OBJECT_ID])) AS 'Table' " +
                              ",C.NAME as 'Column'" +
-                             ",T.name AS 'Type',C.max_length ,C.is_nullable " +
+                             ",T.name AS 'Type',C.max_length ,C.is_nullable , C.is_identity as [identity] " +
                              "FROM SYS.COLUMNS C INNER JOIN SYS.TABLES tb ON tb.[object_id] = C.[object_id] " +
                              "INNER JOIN SYS.TYPES T ON C.system_type_id = T.user_type_id " +
                              $"WHERE tb.[is_ms_shipped] = 0 and tb.[object_id] = OBJECT_ID('{config.Desto}')";
@@ -74,27 +66,47 @@ dbConnection.Open();
                 
                 
                 string rcomp;
-                foreach (dynamic row in data)
+
+                try
                 {
-                    
-                    tt.Add(row.Type);
-                    rcomp = rr[i];
-                    if (rcomp.IndexOf("\r") > 0)
+                    foreach (dynamic row in data)
                     {
-                        rcomp = rcomp.Replace("\r", "");
-                        rr[i] = rcomp;
+
+
+                        if (row.identity)
+                            continue;
+                        tt.Add(row.Type);
+                        rcomp = rr[i];
+                        if (rcomp.IndexOf("\r") > 0)
+                        {
+                            rcomp = rcomp.Replace("\r", "");
+                            rr[i] = rcomp;
+                        }
+                        if (rcomp.IndexOf("\n") > 0)
+                        {
+                            rcomp = rcomp.Replace("\n", "");
+                            rr[i] = rcomp;
+                        }
+                        string rowColumn = row.Column;
+                        if (rowColumn.ToLower() != rcomp.ToLower())
+                        {
+                            var le = new LogError();
+                            le.InsertError($"error field {row.Column} != {rcomp} mismatch " + config.Name, r.filename,
+                                false);
+                            return false;
+
+                        }
+
+                        i++;
+                        if (i == csvFieldCount)
+                            return true;
                     }
-                    if (rcomp.IndexOf("\n") > 0)
-                    {
-                        rcomp = rcomp.Replace("\n", "");
-                        rr[i] = rcomp;
-                    }
-                    if (row.Column != rcomp)
-                        return false;
-                        
-                    i++;
-                    if (i == csvFieldCount)
-                        return true;
+                }
+                catch (Exception ex)
+                {
+                    var le = new LogError();
+                    le.InsertError(ex.Message, r.filename,
+                        false);
                 }
             }
             return true;
@@ -105,10 +117,10 @@ dbConnection.Open();
             //because this is a staging table, lets first delete the records by truncating table.
             using (IDbConnection dbConnection = ConnectionID)
             {
-                string sqlT = $"truncate table {config.Desto}";
-                dbConnection.Execute(sqlT);
+                //string sqlT = $"truncate table {config.Desto}";
+                //dbConnection.Execute(sqlT);
             }
-
+            string dt = DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss");
             //string qry = "SELECT top 1 * FROM ImportData." + config.Desto;
                 string parms = null;
             string data;
@@ -116,7 +128,7 @@ dbConnection.Open();
             {
                 parms += s + ",";
             }
-            parms += "sourcefilename";
+            parms += "sourcefilename,DateImported";
             //parms = parms.Remove(parms.Length - 1);
             int reccount = 0;
             using (IDbConnection dbConnection = ConnectionID)
@@ -131,17 +143,33 @@ dbConnection.Open();
                     {
                         if (tt[i].Contains("char") || tt[i].Contains("date"))
                         {
-                            data += "'" + d.Replace("'", "''") + "',"; 
+                            data += "'" + d.Replace("'", "''") + "',";
                         }
                         else
-                            data += d + ",";
+                        {
+                            if(d.Length != 0)
+                                data += d + ",";
+                            else
+                            {
+                                data += "null,";
+                            }
+                        }
 
                         i++;
                     }
-                    data += "'" +  rcsv.filename + "'" ; 
+                    data += "'" +  rcsv.filename + "','" + dt + "'" ; 
                     //data = data.Remove(data.Length - 1);
                     string sql = $"insert into {config.Desto} ({parms}) values ({data})";
-                    dbConnection.Execute(sql);
+                    try
+                    {
+                        dbConnection.Execute(sql);
+                    }
+                    catch (Exception e)
+                    {
+                        var le = new LogError();
+                        le.InsertError("insert error: " + e.Message, rcsv.filename);
+                    }
+                    
                     reccount++;
                     csvr = rcsv.parser.Read();
                 }
@@ -159,19 +187,12 @@ dbConnection.Open();
             {
                 try
                 {
-                    dbConnectionService.Execute(config.updateQuery);
+                    if(config.MoveProc != null && config.MoveProc.Length > 2)
+                        dbConnectionService.Execute(config.MoveProc, commandType: CommandType.StoredProcedure);
                 }
                 catch (Exception ex)
                 {
-                    error(ex.Message, config.updateQuery);
-                }
-                try
-                {
-                    dbConnectionService.Execute(config.insertQuery);
-                }
-                catch (Exception ex)
-                {
-                    error(ex.Message, config.insertQuery);
+                    error(ex.Message, config.MoveProc);
                 }
             }
 

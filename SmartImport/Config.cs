@@ -13,8 +13,8 @@ namespace SmartImport
 
         public DateTime? LastRun { get; set; }
         
-        public string updateQuery { get; set; }
-        public string insertQuery { get; set; }
+        public string MoveProc { get; set; }
+        
         public string archiveLocation { get; set; }
 
     }

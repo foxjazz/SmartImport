@@ -12,6 +12,12 @@ namespace SmartImport
             //Read ImportSource table for parameters
             try
             {
+                if (args.Length > 0 && args[0] == "testemail")
+                {
+                    var te = new LogError();
+                    te.InsertError("test email", "na", true);
+                    return;
+                }
                 var cd = new ConfigData();
                 cd.PopulateList();
                 foreach (var config in cd.ListConfig)
@@ -35,10 +41,16 @@ namespace SmartImport
                         }
                         try
                         {
-                            //archive already processed found files
-                            string fullSource = config.Source + "\\" + rcsv.filename;
-                            File.Copy(rcsv.filename, config.archiveLocation + "\\" + rcsv.filename);
-                            File.Delete(rcsv.filename);
+                            if (config.archiveLocation != null &&  config.archiveLocation.Length > 2)
+                            {
+                                //archive already processed found files
+                                string fullSource = config.Source + "\\" + rcsv.filename;
+                                string target = config.archiveLocation + "\\" + rcsv.filename;
+                                if (!File.Exists(target))
+                                    File.Copy(rcsv.filename, config.archiveLocation + "\\" + rcsv.filename);
+                                ReadCsv.FileDelete(rcsv.filename);
+                            }
+
                         }
                         catch
                         {

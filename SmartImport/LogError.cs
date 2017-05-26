@@ -6,27 +6,29 @@ using System.Text;
 using System.Threading.Tasks;
 using Dapper;
 
-using MailKit;
-using MailKit.Net.Smtp;
-using MailKit.Security;
-using MimeKit;
-
 namespace SmartImport
 {
     public class LogError
     {
 
-#if DEBUG
-        private const string csImportData = @"Server=SBQ201;Database=ImportData;Trusted_Connection=true;";
-#else
-           private const string csImportData = @"Server=87309-SB201;Database=ImportData;Trusted_Connection=true;";
-#endif
+        public LogError()
+        {
+            this.sendMail = false;
+        }
+        private readonly string csImportData = GetCS.cs();
         public IDbConnection ConnectionID
         {
             get
             {
                 return new SqlConnection(csImportData);
             }
+        }
+
+        public bool sendMail { get; set; }
+        public void InsertError(string error, string filename, bool sm)
+        {
+            this.sendMail = sm;
+            this.InsertError(error,filename);
         }
         public void InsertError(string error, string filename)
         {
@@ -38,25 +40,38 @@ namespace SmartImport
                 string sql =
                     $"insert into ImportSourceErrorLog (dt,Error,Filename) values (getdate(),{tError},{tFilename})";
                 dbConnection.Execute(sql);
-                SendEmailAsync("jdickinson@statebridgecompany.com", "SmartImport error message email", error).RunSynchronously();
+
+                if(sendMail)
+                    SendEmail("jdickinson@statebridgecompany.com", "SmartImport error message email", error);
 
             }
         }
-        public async Task SendEmailAsync(string email, string subject, string message)
+        public  void SendEmail(string email, string subject, string message)
         {
-            var emailMessage = new MimeMessage();
-
-            emailMessage.From.Add(new MailboxAddress("Joe Bloggs", "jbloggs@example.com"));
-            emailMessage.To.Add(new MailboxAddress("", email));
-            emailMessage.Subject = subject;
-            emailMessage.Body = new TextPart("plain") { Text = message };
-
-            using (var client = new SmtpClient())
+            using (IDbConnection dbConnectionService = ConnectionID)
             {
-                client.LocalDomain = "statebridgecompany-com.mail.protection.outlook.com";
-                await client.ConnectAsync("smtp.relay.uri", 25, SecureSocketOptions.None).ConfigureAwait(false);
-                await client.SendAsync(emailMessage).ConfigureAwait(false);
-                await client.DisconnectAsync(true).ConfigureAwait(false);
+                var t = new SqlParameter();
+                t.DbType = System.Data.DbType.String;
+                DynamicParameters dp = new DynamicParameters();
+                t.ParameterName = "@sendto";
+                t.SqlValue = "jdickinson@statebridgecompany.com";
+                dp.Add(t.ParameterName, t.SqlValue, t.DbType);
+
+                t.ParameterName = "@sub";
+                t.SqlValue = subject;
+                dp.Add(t.ParameterName, t.SqlValue, t.DbType);
+                t.ParameterName = "@bod";
+                t.SqlValue = message;
+                dp.Add(t.ParameterName, t.SqlValue, t.DbType);
+
+                try
+                {
+                    dbConnectionService.Execute("SendMail", dp, commandType: CommandType.StoredProcedure);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex.Message);
+                }
             }
         }
     }

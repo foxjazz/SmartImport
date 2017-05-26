@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Text;
 using CsvHelper;
 using Dapper;
@@ -18,28 +19,25 @@ namespace SmartImport
         public ReadCsv(Config cnf)
         {
             config = cnf;
+#if DEBUG
+//config.Source = @"C:\Users\jdickinson\Documents\test";
+#endif
+
             string fil = config.Source;
+
             startFileName = fil.Substring(fil.LastIndexOf("\\") + 1);
 
             folder = fil.Substring(0, fil.LastIndexOf("\\"));
 
         }
 
-        private string startFileName;
-        private string folder;
-#if DEBUG
-        private const string connectionString = @"Server=SBQ201;Database=ImportData;Trusted_Connection=true;";
-#else
-           private const string connectionString = @"Server=87309-SB201;Database=ImportData;Trusted_Connection=true;";
-#endif
+        private readonly string startFileName;
+        private readonly string folder;
 
-        public IDbConnection Connection
-        {
-            get
-            {
-                return new SqlConnection(connectionString);
-            }
-        }
+        private readonly string connectionString = GetCS.cs();
+
+        public IDbConnection Connection => new SqlConnection(connectionString);
+
         private List<string> getRunFiles()
         {
             using (IDbConnection dbConnection = Connection)
@@ -56,6 +54,15 @@ namespace SmartImport
             }
 
         }
+
+        public static void FileDelete(string fn)
+        {
+#if DEBUG
+#else
+            File.Delete(fn);
+#endif
+
+        }
         private string getFile()
         {
             string fnOnly=null;
@@ -69,9 +76,17 @@ namespace SmartImport
                 {
                     try
                     {
-                        
-                        File.Copy(fn, config.archiveLocation + "\\" + fnOnly);
-                        File.Delete(fn);
+                        if (config.archiveLocation != null && config.archiveLocation.Length > 2)
+                        {
+                            string target = config.archiveLocation + "\\" + fnOnly;
+                            if (File.Exists(target))
+                                FileDelete(fn);
+                            else
+                            {
+                                File.Copy(fn, target);
+                                FileDelete(fn);
+                            }
+                        }
                     }
                     catch(Exception ex)
                     {

@@ -12,11 +12,7 @@ namespace SmartImport
 
         public List<Config> ListConfig { get; set; }
 
-#if DEBUG
-        private const string connectionString = @"Server=SBQ201;Database=ImportData;Trusted_Connection=true;";
-#else
-           private const string connectionString = @"Server=87309-SB201;Database=ImportData;Trusted_Connection=true;";
-#endif
+        private string connectionString = GetCS.cs();
         public IDbConnection Connection
         {
             get
@@ -34,7 +30,7 @@ namespace SmartImport
             using (IDbConnection dbConnection = Connection)
             {
                 
-                    string sQuery = "SELECT name, Source, Desto, LastRun, updateQuery, insertQuery, archiveLocation FROM ImportSource";
+                    string sQuery = "SELECT name, Source, Desto,  MoveProc, archiveLocation FROM ImportSource";
                     dbConnection.Open();
                     ListConfig =  dbConnection.Query<Config>(sQuery).ToList();
                 
