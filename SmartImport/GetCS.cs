@@ -8,26 +8,26 @@ namespace SmartImport
     {
         private static  void setServer()
         {
-            //ServerName = "SBD201";
-            ServerName = "87309-SB201";
+            
+            ServerName = "DBName";
         }
         private static string ServerName { get; set; }
         public static string SD()
         {
             setServer();
 #if DEBUG
-            return $"Server={ServerName};Database=Service;Trusted_Connection=true;";
+            return $"Server={ServerName};Database=DBName;Trusted_Connection=true;";
 #else
-                  return @"Server=87309-SB201;Database=Service;Trusted_Connection=true;";
+                  return @"Server=ServerName;Database=DBName;Trusted_Connection=true;";
 #endif
         }
         public static string cs()
         {
             setServer();
 #if DEBUG
-            return $"Server={ServerName};Database=ImportData;Trusted_Connection=true;";
+            return $"Server={ServerName};Database=DBName;Trusted_Connection=true;";
 #else
-                  return @"Server=87309-SB201;Database=ImportData;Trusted_Connection=true;";
+                  return @"Server=ServerName;Database=DBName;Trusted_Connection=true;";
 #endif
         }
     }
