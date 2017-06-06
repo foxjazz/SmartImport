@@ -9,7 +9,17 @@ namespace SmartImport
 {
     public class ConfigData
     {
+        public ConfigData(string n)
+        {
+            name = n;
+        }
 
+        public ConfigData()
+        {
+            name = "";
+
+        }
+        public string name { get; set; }
         public List<Config> ListConfig { get; set; }
 
         private string connectionString = GetCS.cs();
@@ -21,17 +31,21 @@ namespace SmartImport
             }
         }
 
-        public ConfigData()
-        {
-        }
         public void  PopulateList()
         {
 
             using (IDbConnection dbConnection = Connection)
             {
-                
-                    string sQuery = "SELECT name, Source, Desto,  MoveProc, archiveLocation FROM ImportSource";
-                    dbConnection.Open();
+                string sQuery;
+                if (name.Length > 0)
+                {
+                    sQuery = $"SELECT name, Source, Desto,  MoveProc, archiveLocation FROM ImportSource where name = '{name}'";
+                }
+                else
+                {
+                    sQuery = "SELECT name, Source, Desto,  MoveProc, archiveLocation FROM ImportSource";
+                }
+                dbConnection.Open();
                     ListConfig =  dbConnection.Query<Config>(sQuery).ToList();
                 
                 
