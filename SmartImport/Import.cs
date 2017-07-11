@@ -173,10 +173,12 @@ dbConnection.Open();
                     reccount++;
                     csvr = rcsv.parser.Read();
                 }
+                rcsv.parser.Dispose();
                 string message = $"'{reccount} Records added'";
                 
 
                 string fnOnly = rcsv.filename.Substring(rcsv.filename.LastIndexOf("\\") + 1);
+              
                 string tempFn = $"'{fnOnly}'";
                 string sqlLog = $"insert into dbo.ImportSourceLog (Daterun,Message,Filename) values (getdate(),{message},{tempFn})";
                 dbConnection.Execute(sqlLog);

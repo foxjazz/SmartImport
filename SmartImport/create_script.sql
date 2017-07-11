@@ -58,3 +58,19 @@ GO
 
 
 
+USE [ImportData]
+GO
+
+/****** Object:  Table [dbo].[ImportTriggers]    Script Date: 7/11/2017 10:51:12 AM ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[ImportTriggers](
+	[ImportStart] [datetime] NOT NULL
+) ON [PRIMARY]
+
+GO
+

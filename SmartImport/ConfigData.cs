@@ -31,6 +31,19 @@ namespace SmartImport
             }
         }
 
+        public List<ImportTrigger> importTriggers;
+        public void PopulateTriggers()
+        {
+            using (IDbConnection dbConnection = Connection)
+            {
+                string sQuery;
+                    sQuery = $"SELECT ImportStart from ImportTriggers";
+                dbConnection.Open();
+                importTriggers = dbConnection.Query<ImportTrigger>(sQuery).ToList();
+
+
+            }
+        }
         public void  PopulateList()
         {
 
@@ -39,11 +52,13 @@ namespace SmartImport
                 string sQuery;
                 if (name.Length > 0)
                 {
-                    sQuery = $"SELECT name, Source, Desto,  MoveProc, archiveLocation FROM ImportSource where name = '{name}'";
+                    sQuery = $"SELECT name, Source, Desto,  MoveProc, archiveLocation FROM " +
+                             $"ImportSource" +
+                             $" where name = '{name}'";
                 }
                 else
                 {
-                    sQuery = "SELECT name, Source, Desto,  MoveProc, archiveLocation FROM ImportSource";
+                    sQuery = "SELECT name, Source, Desto,  MoveProc, archiveLocation FROM ImportSource where active = 1";
                 }
                 dbConnection.Open();
                     ListConfig =  dbConnection.Query<Config>(sQuery).ToList();

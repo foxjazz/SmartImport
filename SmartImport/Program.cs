@@ -23,6 +23,7 @@ namespace SmartImport
                 foreach (var config in cd.ListConfig)
                 {
                     var rcsv = new ReadCsv(config);
+
                     while (rcsv.Read())
                     {
                         try
@@ -49,6 +50,7 @@ namespace SmartImport
                                 if (!File.Exists(target))
                                     File.Copy(rcsv.filename, config.archiveLocation + "\\" + rcsv.filename);
                                 ReadCsv.FileDelete(rcsv.filename);
+                                
                             }
 
                         }
