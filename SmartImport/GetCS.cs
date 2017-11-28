@@ -6,29 +6,32 @@ namespace SmartImport
 {
     public class GetCS
     {
-        private static  void setServer()
-        {
-            
-            ServerName = "DBName";
-        }
+       
         private static string ServerName { get; set; }
+        private static string ProdServerName { get; set; }
         public static string SD()
         {
-            setServer();
-#if DEBUG
-            return $"Server={ServerName};Database=DBName;Trusted_Connection=true;";
-#else
-                  return @"Server=ServerName;Database=DBName;Trusted_Connection=true;";
-#endif
+            var conn = new DBConnection();
+            return conn.serviceConnstr;
+//            setServer();
+//#if DEBUG
+//            return $"Server={ServerName};Database=Service;Trusted_Connection=true;";
+//#else
+//            return $"Server={ProdServerName};Database=Service;Trusted_Connection=true;";
+            
+//#endif
         }
-        public static string cs()
+        public static string importData()
         {
-            setServer();
-#if DEBUG
-            return $"Server={ServerName};Database=DBName;Trusted_Connection=true;";
-#else
-                  return @"Server=ServerName;Database=DBName;Trusted_Connection=true;";
-#endif
+            var conn = new DBConnection();
+            return conn.ImportDataConnstr;
+//            setServer();
+//#if DEBUG
+//            return $"Server={ServerName};Database=ImportData;Trusted_Connection=true;";
+//#else
+//            return $"Server={ProdServerName};Database=ImportData;Trusted_Connection=true;";
+            
+//#endif
         }
     }
 }

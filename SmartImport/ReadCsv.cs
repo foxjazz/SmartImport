@@ -34,7 +34,7 @@ namespace SmartImport
         private readonly string startFileName;
         private readonly string folder;
 
-        private readonly string connectionString = GetCS.cs();
+        private readonly string connectionString = GetCS.importData();
 
         public IDbConnection Connection => new SqlConnection(connectionString);
 
@@ -69,6 +69,7 @@ namespace SmartImport
             //This should be dependent on files not yet run.
             List<string> runFiles = getRunFiles();
             var list = Directory.GetFiles(folder, startFileName + "*");
+
             foreach (var fn in list)
             {
                 fnOnly = fn.Substring(fn.LastIndexOf("\\") + 1);
@@ -91,7 +92,7 @@ namespace SmartImport
                     catch(Exception ex)
                     {
                         var n = new LogError();
-                        n.InsertError("Copy to archive failed." + ex.Message, fnOnly);
+                        n.InsertError("Copy to archive failed." + ex.Message, fnOnly, config.Email);
                     }
                     continue;
                 }
@@ -118,7 +119,7 @@ namespace SmartImport
             catch (Exception ex)
             {
                 var le = new LogError();
-                le.InsertError(ex.Message, "Reading File " + filename);
+                le.InsertError(ex.Message, "Reading File " + filename, config.Email);
                 Console.WriteLine(ex.Message);
                 return false;
             }

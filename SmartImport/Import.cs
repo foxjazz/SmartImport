@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -9,10 +10,10 @@ using Dapper;
 
 namespace SmartImport
 {
-    public class Import
+    public class Import : IDisposable
     {
 
-        private readonly string csImportData = GetCS.cs();
+        private readonly string csImportData = GetCS.importData();
         private readonly string connectionString = GetCS.SD();
 
         private Config config;
@@ -36,17 +37,21 @@ namespace SmartImport
             }
         }
         private ReadCsv rcsv;
-        private string[] rr;
-        public List<string> tt;
+        private string[] rr; //raw record from csv
+        private List<ColumnInfo> cil;
+        public List<string> tt;  //ordered type from csv
         public bool CheckFields(ReadCsv r)
         {
             rcsv = r;
+            var csvColumns = new List<string>();
             int csvFieldCount = r.parser.FieldCount;
             using (IDbConnection dbConnection = ConnectionID)
             {
                 //string sql = $"SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('{config.Desto}') ";
-
-                string sql = "SELECT QUOTENAME(SCHEMA_NAME(tb.[schema_id])) AS 'Schema' " +
+                try
+                {
+                    tt = new List<string>();
+                    string sql = "SELECT QUOTENAME(SCHEMA_NAME(tb.[schema_id])) AS 'Schema' " +
                              ",QUOTENAME(OBJECT_NAME(tb.[OBJECT_ID])) AS 'Table' " +
                              ",C.NAME as 'Column'" +
                              ",T.name AS 'Type',C.max_length ,C.is_nullable , C.is_identity as [identity] " +
@@ -56,77 +61,140 @@ namespace SmartImport
 
 
 
-dbConnection.Open();
-                var data = dbConnection.Query(sql).ToList();
-
-                var x = data;
-                int i=0;
-                rr = r.parser.RawRecord.Split(',');
-                tt = new List<string>();
-                
-                
-                string rcomp;
-
-                try
-                {
+                    dbConnection.Open();
+                    int tc = 0;
+                    string sTempRC;
+                    var data = dbConnection.Query(sql).ToList();
+                    cil = new List<ColumnInfo>();
                     foreach (dynamic row in data)
                     {
-
-
+                        tc++;
                         if (row.identity)
                             continue;
-                        tt.Add(row.Type);
-                        rcomp = rr[i];
-                        if (rcomp.IndexOf("\r") > 0)
+                        if (row.Column.IndexOf(" ") > 0)
+                            sTempRC = row.Column; //.Replace("\"","");
+                        else
                         {
-                            rcomp = rcomp.Replace("\r", "");
-                            rr[i] = rcomp;
+                            sTempRC = row.Column;
                         }
-                        if (rcomp.IndexOf("\n") > 0)
+                        cil.Add(new ColumnInfo{name = sTempRC, type=row.Type});
+                    }
+                    
+                    rr = r.parser.RawRecord.Split(',');
+                    for (int icnt = 0; icnt < rr.Length; icnt++)
+                    {
+                        tc++;
+                        //Clean up carraig return in file here on column names (last one may have it).
+                        if (rr[icnt].IndexOf("\n") > 0)
                         {
-                            rcomp = rcomp.Replace("\n", "");
-                            rr[i] = rcomp;
+                            rr[icnt] = rr[icnt].Replace("\n", "");
                         }
-                        string rowColumn = row.Column;
-                        if (rowColumn.ToLower() != rcomp.ToLower())
+                        if (rr[icnt].IndexOf("\r") > 0)
+                        {
+                            rr[icnt] = rr[icnt].Replace("\r","");
+                        }
+                        while (rr[icnt].IndexOf("\"") >= 0)
+                        {
+                            rr[icnt] = rr[icnt].Replace("\"","");
+                        }
+                        var lu = lookup(rr[icnt].ToLower());
+                        if (lu == null)
                         {
                             var le = new LogError();
-                            le.InsertError($"error field {row.Column} != {rcomp} mismatch " + config.Name, r.filename,
+                            le.InsertError($"error field {rr[icnt]} not exist in schema {config.Name}", r.filename, config.Email,
+                                false);
+                            Program.Log($"error field {rr[icnt]} not exist in schema {config.Name} filename - {r.filename}");
+                            return false;
+                        }
+                        Debug.WriteLine(" column num:" + tc);
+                        tt.Add(lu.type);
+                    }
+                    foreach (string cs in rr)
+                    {
+                        var rcomp = cs;
+                        csvColumns.Add(rcomp.ToLower());
+                    }
+
+                    foreach (string col in csvColumns)
+                    {
+                        var test = checkColumn(col.ToLower());
+                        if (!test) //checks column exist in db schema
+                        {
+                            var le = new LogError();
+                            le.InsertError($"error field {col} not exist in schema " + config.Name, r.filename,config.Email,
                                 false);
                             return false;
-
                         }
-
-                        i++;
-                        if (i == csvFieldCount)
-                            return true;
                     }
+
+
+                    return true;
                 }
                 catch (Exception ex)
                 {
                     var le = new LogError();
-                    le.InsertError(ex.Message, r.filename,
+                    le.InsertError(ex.Message, r.filename,config.Email,
                         false);
+                    Program.Log(ex.Message + $" filename {r.filename} time:{DateTime.Now:hh:mm:ss}");
                 }
             }
             return true;
         }
 
+        private bool checkColumn(string name)
+        {
+            foreach (ColumnInfo ci in cil)
+            {
+                if (ci.name.ToLower() == name)
+                    return true;
+            }
+            return false;
+        }
+
+        private ColumnInfo lookup(string l)
+        {
+
+            foreach (ColumnInfo ci in cil)
+            {
+                if (ci.name.ToLower() == l)
+                    return ci;
+            }
+            
+            if (l.IndexOf("sourcefilename") >= 0 || l.IndexOf("dateimported") >=0)
+            {
+                var info = new ColumnInfo();
+                info.name = l;
+                info.type = "varchar(max)";
+                return info;
+            }
+            ;
+            return null;
+        }
         public void ImportData(Config config)
         {
             //because this is a staging table, lets first delete the records by truncating table.
-            using (IDbConnection dbConnection = ConnectionID)
-            {
-                //string sqlT = $"truncate table {config.Desto}";
-                //dbConnection.Execute(sqlT);
-            }
+            //using (IDbConnection dbConnection = ConnectionID)
+            //{
+            //    //string sqlT = $"truncate table {config.Desto}";
+            //    //dbConnection.Execute(sqlT);
+            //}
+            var datastr = new StringBuilder();
             string dt = DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss");
             //string qry = "SELECT top 1 * FROM ImportData." + config.Desto;
                 string parms = null;
-            string data;
+            string fieldName;
             foreach (var s in rr)
             {
-                parms += s + ",";
+
+                if (s.IndexOf(" ") > 0)
+                {
+                    fieldName = "[" + s + "]";
+                }
+                else
+                {
+                    fieldName = s;
+                }
+                parms += fieldName + ",";
             }
             parms += "sourcefilename,DateImported";
             //parms = parms.Remove(parms.Length - 1);
@@ -137,29 +205,54 @@ dbConnection.Open();
                 
                 while (csvr != null && csvr.Length > 0)
                 {
-                    data = null;
+                    
                     int i = 0;
                     foreach (string d in csvr)
                     {
-                        if (tt[i].Contains("char") || tt[i].Contains("date"))
+                        if (tt[i].Contains("char")  )
                         {
-                            data += "'" + d.Replace("'", "''") + "',";
+                            if (d.Trim().Length != 0)
+                                datastr.Append( "'" + d.Replace("'", "''") + "',");
+                            else
+                                datastr.Append("null,");
+                        }
+                        else if (tt[i].Contains("date"))
+                        {
+                            if (d.Trim().Length < 2)
+                            {
+                                datastr.Append("null,");
+                            }
+                            else
+                            {
+                                DateTime ddd;
+                                if (DateTime.TryParse(d, out ddd))
+                                {
+                                    //DateTime ddd = Convert.ToDateTime(d);
+                                    if (ddd.Year < 1901)
+                                        datastr.Append("null,");
+                                    else
+                                        datastr.Append("'" + d + "',");
+                                }
+                                else
+                                    datastr.Append("null,");
+                            }
                         }
                         else
                         {
-                            if(d.Length != 0)
-                                data += d + ",";
+                            if(d.Trim().Length != 0)
+                                datastr.Append(d + ",");
                             else
                             {
-                                data += "null,";
+                                datastr.Append("null,");
                             }
                         }
 
                         i++;
                     }
-                    data += "'" +  rcsv.filename + "','" + dt + "'" ; 
+                    datastr.Append( "'" +  rcsv.filename + "','" + dt + "'" ); 
                     //data = data.Remove(data.Length - 1);
-                    string sql = $"insert into {config.Desto} ({parms}) values ({data})";
+                    string sql = $"insert into {config.Desto} ({parms}) values ({datastr})";
+                    datastr.Length = 0;
                     try
                     {
                         dbConnection.Execute(sql);
@@ -167,22 +260,24 @@ dbConnection.Open();
                     catch (Exception e)
                     {
                         var le = new LogError();
-                        le.InsertError("insert error: " + e.Message, rcsv.filename);
+                        le.InsertError("insert error: " + e.Message, rcsv.filename, config.Email);
+                        Program.Log($"error at csv line: {reccount}");
+                        Program.Log($"Sql Execute Error: {sql}");
+                        Program.Log($"error: {e.Message} file: {rcsv.filename}");
                     }
                     
                     reccount++;
                     csvr = rcsv.parser.Read();
                 }
-                rcsv.parser.Dispose();
                 string message = $"'{reccount} Records added'";
                 
-
+                
                 string fnOnly = rcsv.filename.Substring(rcsv.filename.LastIndexOf("\\") + 1);
-              
                 string tempFn = $"'{fnOnly}'";
                 string sqlLog = $"insert into dbo.ImportSourceLog (Daterun,Message,Filename) values (getdate(),{message},{tempFn})";
                 dbConnection.Execute(sqlLog);
-               
+                Program.Log($"Completed inserting data for {rcsv.filename}, record count: {reccount}");
+                rcsv.parser.Dispose();
 
             }
             using (IDbConnection dbConnectionService = Connection)
@@ -190,11 +285,12 @@ dbConnection.Open();
                 try
                 {
                     if(config.MoveProc != null && config.MoveProc.Length > 2)
-                        dbConnectionService.Execute(config.MoveProc, commandType: CommandType.StoredProcedure);
+                        dbConnectionService.Execute(config.MoveProc, commandType: CommandType.StoredProcedure,commandTimeout: 500);
                 }
                 catch (Exception ex)
                 {
-                    error(ex.Message, config.MoveProc);
+                    Program.Log($"error at Stored proc {config.MoveProc}  Exception:{ex.Message}");
+                    
                 }
             }
 
@@ -203,8 +299,15 @@ dbConnection.Open();
         private void error(string e, string second)
         {
             var err = new LogError();
-            err.InsertError(e, second);
+            err.InsertError(e, second, config.Email);
             
         }
+
+        public void Dispose()
+        {
+            rcsv?.parser.Dispose();
+        }
+
+        
     }
 }

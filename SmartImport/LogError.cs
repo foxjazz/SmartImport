@@ -14,8 +14,9 @@ namespace SmartImport
         public LogError()
         {
             this.sendMail = false;
+            Program.Log("Log Error");
         }
-        private readonly string csImportData = GetCS.cs();
+        private readonly string csImportData = GetCS.importData();
         public IDbConnection ConnectionID
         {
             get
@@ -25,12 +26,12 @@ namespace SmartImport
         }
 
         public bool sendMail { get; set; }
-        public void InsertError(string error, string filename, bool sm)
+        public void InsertError(string error, string filename,string email, bool sm)
         {
             this.sendMail = sm;
-            this.InsertError(error,filename);
+            this.InsertError(error,filename,email);
         }
-        public void InsertError(string error, string filename)
+        public void InsertError(string error, string filename,string email)
         {
             using (IDbConnection dbConnection = ConnectionID)
             {
@@ -42,7 +43,7 @@ namespace SmartImport
                 dbConnection.Execute(sql);
 
                 if(sendMail)
-                    SendEmail("jdickinson@statebridgecompany.com", "SmartImport error message email", error);
+                    SendEmail(email, "SmartImport error message email", error);
 
             }
         }
@@ -54,7 +55,7 @@ namespace SmartImport
                 t.DbType = System.Data.DbType.String;
                 DynamicParameters dp = new DynamicParameters();
                 t.ParameterName = "@sendto";
-                t.SqlValue = "jdickinson@statebridgecompany.com";
+                t.SqlValue = email;
                 dp.Add(t.ParameterName, t.SqlValue, t.DbType);
 
                 t.ParameterName = "@sub";
@@ -70,7 +71,7 @@ namespace SmartImport
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    Program.Log("Error on email sending: " + ex.Message);
                 }
             }
         }
